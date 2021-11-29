@@ -12,7 +12,9 @@ flask-task/
 │   └── start.sh
 │   └── Dockerfile
 │   └── templates
-|   └── credentials
+|   └── credentials.py
+|── db
+|   └── init.sql
 └── docker-compose.yml
 ```
 
@@ -163,6 +165,17 @@ config = {
 }
 ```
 
+## init.sql
+```
+CREATE DATABASE statistics;
+USE statistics;
+
+CREATE TABLE cpu(id INT NOT NULL AUTO_INCREMENT,cpuUsage varchar(255) NOT NULL,timestamp timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),primary key (id));
+
+CREATE TABLE memory(id INT NOT NULL AUTO_INCREMENT,memUsage varchar(255) NOT NULL,memFree varchar(255) NOT NULL,timestamp timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),primary key (id));
+
+CREATE TABLE disk(id INT NOT NULL AUTO_INCREMENT,diskUsage varchar(255) NOT NULL,diskFree varchar(255) NOT NULL,timestamp timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),primary key (id));
+```
 ## crontab
 
 ```
@@ -232,12 +245,8 @@ services:
       MYSQL_ROOT_PASSWORD: root
     ports:
       - '3307:3306'
-    entrypoint:
-      sh -c "
-        echo 'CREATE DATABASE IF NOT EXISTS statistics;use statistics;CREATE TABLE cpu(id INT NOT NULL AUTO_INCREMENT,cpuUsage varchar(255) NOT NULL,timestamp timestamp NOT NULL DEFAULT current_timestamp()
-        ON UPDATE current_timestamp(),primary key (id));CREATE TABLE memory(id INT NOT NULL AUTO_INCREMENT,memUsage varchar(255) NOT NULL,memFree varchar(255) NOT NULL,timestamp timestamp NOT NULL DEFAULT
-        current_timestamp() ON UPDATE current_timestamp(),primary key (id));CREATE TABLE disk(id INT NOT NULL AUTO_INCREMENT,diskUsage varchar(255) NOT NULL,diskFree varchar(255) NOT NULL,timestamp timestamp NOT        NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),primary key (id));' > /docker-entrypoint-initdb.d/init.sql;
-        /usr/local/bin/docker-entrypoint.sh --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci"
+    volumes:
+      - ./db:/docker-entrypoint-initdb.d/
 ```
 
 ## Building Docker Image and Run Containers
@@ -304,7 +313,7 @@ class TestOperation(TestCase):
     cursor.__exit___              = MagicMock()
 
     conn.cursor.return_value = cursor
-    app.getCpuInfo()
+    app.getInfo("SELECT * FROM cpu order by id desc limit 24")
     mock_sql.connect.assert_called_with(database='statistics', host='localhost', password='Aboalrood123@', user='root')
     cursor.execute.assert_called_with("SELECT * FROM cpu order by id desc limit 24")
 
@@ -320,7 +329,7 @@ class TestOperation(TestCase):
     cursor.__exit___              = MagicMock()
 
     conn.cursor.return_value = cursor
-    app.getMemInfo()
+    app.getInfo("SELECT * FROM memory order by id desc limit 24")
     mock_sql.connect.assert_called_with(database='statistics', host='localhost', password='Aboalrood123@', user='root')
     cursor.execute.assert_called_with("SELECT * FROM memory order by id desc limit 24")
 
@@ -337,7 +346,7 @@ class TestOperation(TestCase):
     cursor.__exit___              = MagicMock()
 
     conn.cursor.return_value = cursor
-    app.getDiskInfo()
+    app.getInfo("SELECT * FROM disk order by id desc limit 24")
     mock_sql.connect.assert_called_with(database='statistics', host='localhost', password='Aboalrood123@', user='root')
     cursor.execute.assert_called_with("SELECT * FROM disk order by id desc limit 24")
 ```
