@@ -12,6 +12,7 @@ flask-task/
 │   └── start.sh
 │   └── Dockerfile
 │   └── templates
+|   └── credentials
 └── docker-compose.yml
 ```
 
@@ -23,68 +24,41 @@ import psutil
 import datetime
 import time
 import mysql.connector
+import credentials
 
 app = Flask(__name__)
 
-
-config = {
-    'user': 'root',
-    'password': 'root',
-    'host': 'db',
-    'port': '3306',
-    'database': 'statistics'
-}
-
-
-
-def getCpuInfo():
-    connection = mysql.connector.connect(**config)
+def getInfo(query):
+    connection = mysql.connector.connect(**credentials.config)
     cursor = connection.cursor()
-    cursor.execute("SELECT * FROM cpu order by id desc limit 24")
-    cpuInfo = cursor.fetchall()
+    cursor.execute(query)
+    info = cursor.fetchall()
     cursor.close()
     connection.close()
-    return cpuInfo
+    return info
 
-def getMemInfo():
-    connection = mysql.connector.connect(**config)
-    cursor = connection.cursor()
-    cursor.execute("SELECT * FROM memory order by id desc limit 24")
-    memoryInfo = cursor.fetchall()
-    cursor.close()
-    connection.close()
-    return memoryInfo
+def getTime(ts):
+    time= datetime.datetime.fromtimestamp(ts).strftime('%Y-%m-%d %H:%M:%S')
+    return time
 
-
-def getDiskInfo():
-    connection = mysql.connector.connect(**config)
-    cursor = connection.cursor()
-    cursor.execute("SELECT * FROM disk order by id desc limit 24")
-    diskInfo = cursor.fetchall()
-    cursor.close()
-    connection.close()
-    return diskInfo
 
 def getCurrentCpuUsage():
-    cpuUsage = f"{psutil.cpu_percent(interval=0.5)} %"
-    ts = time.time()
-    timestamp= datetime.datetime.fromtimestamp(ts).strftime('%Y-%m-%d %H:%M:%S')
+    cpuUsage = f"{psutil.cpu_percent(interval=0.5)} %" 
+    timestamp= getTime(time.time())
     currentCpuUsage=(cpuUsage,timestamp)
     return currentCpuUsage
 
 def getCurrentMemoryUsage():
     ramUsage = f"{psutil.virtual_memory().percent} %"
     ramFree = f"{int(psutil.virtual_memory().available / 1024 / 1024)} MB"
-    ts = time.time()
-    timestamp= datetime.datetime.fromtimestamp(ts).strftime('%Y-%m-%d %H:%M:%S')
+    timestamp= getTime(time.time())
     currentMemoryUsage=(ramUsage,ramFree,timestamp)
     return currentMemoryUsage
 
 def getCurrentDiskUsage():
     diskUsage = f"{psutil.disk_usage('/').percent}%"
     diskFree = f"{int(psutil.disk_usage('/').free/1024/1024)} MB"
-    ts = time.time()
-    timestamp= datetime.datetime.fromtimestamp(ts).strftime('%Y-%m-%d %H:%M:%S')
+    timestamp= getTime(time.time())
     currentDiskUsage=(diskUsage,diskFree,timestamp)
     return currentDiskUsage
 
@@ -95,15 +69,18 @@ def index():
 
 @app.route('/cpu')
 def cpu():
-    return render_template('cpu.html', data= getCpuInfo())
+    cpuInfo = getInfo("SELECT * FROM cpu order by id desc limit 24")
+    return render_template('cpu.html', data= cpuInfo)
 
 @app.route('/memory')
 def memory():
-    return render_template('memory.html', data= getMemInfo())
+    memoryInfo = getInfo("SELECT * FROM memory order by id desc limit 24")
+    return render_template('memory.html', data= memoryInfo)
 
 @app.route('/disk')
 def disk():
-    return render_template('disk.html', data= getDiskInfo())
+    diskInfo = getInfo("SELECT * FROM disk order by id desc limit 24")
+    return render_template('disk.html', data= diskInfo)
 
 
 @app.route('/currentCpuUsage')
@@ -136,26 +113,22 @@ if __name__ == '__main__':
 import psutil
 import os
 import mysql.connector
-
-config = {
-    'user': 'root',
-    'password': 'root',
-    'host': 'db',
-    'port': '3306',
-    'database': 'statistics'
-}
+import credentials
 
 
 
-mydb = mysql.connector.connect(**config)
-
+mydb = mysql.connector.connect(**credentials.config)
 mycursor = mydb.cursor()
+
+
 
 sqlInsertCpuInfo = "INSERT INTO cpu (cpuUsage) VALUES (%s)"
 
 sqlInsertMemInfo = "INSERT INTO memory (memUsage, memFree) VALUES (%s, %s)"
 
 sqlInsertDiskInfo = "INSERT INTO disk (diskUsage, diskFree) VALUES (%s, %s)"
+
+
 
 cpuUsage = f"{psutil.cpu_percent(interval=0.5)} %"
 
@@ -167,6 +140,8 @@ diskUsage = f"{psutil.disk_usage('/').percent}%"
 
 diskFree = f"{int(psutil.disk_usage('/').free/1024/1024)} MB"
 
+
+
 mycursor.execute(sqlInsertCpuInfo, (cpuUsage,))
 mycursor.execute(sqlInsertMemInfo, (ramUsage, ramFree))
 mycursor.execute(sqlInsertDiskInfo, (diskUsage, diskFree))
@@ -176,6 +151,17 @@ mydb.commit()
 ```
 
 -   The script above will be used by the crontab.
+
+## credentials.py
+```
+config = {
+    'user': 'root',
+    'password': 'root',
+    'host': 'db',
+    'port': '3306',
+    'database': 'statistics'
+}
+```
 
 ## crontab
 
